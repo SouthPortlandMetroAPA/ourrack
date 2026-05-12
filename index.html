@@ -133,6 +133,8 @@
   .task.flash { background: var(--flash); transition: background 0s; }
   .task.tags-paul     { border-left-color: var(--paul); }
   .task.tags-michelle { border-left-color: var(--michelle); }
+  .task.tags-both     { border-left-color: var(--text);
+                        border-image: linear-gradient(180deg, var(--paul) 0 50%, var(--michelle) 50% 100%) 1; }
 
   .task-head {
     display: flex; gap: 10px; align-items: flex-start;
@@ -186,8 +188,52 @@
   .badge.eff-large { background: rgba(220,38,38,0.12); color: var(--eff-large); }
   .badge.assignee-paul { background: rgba(0,70,204,0.12); color: var(--paul); }
   .badge.assignee-michelle { background: rgba(192,38,211,0.12); color: var(--michelle); }
+  .badge.assignee-both {
+    background: linear-gradient(135deg, rgba(0,70,204,0.18) 0 50%, rgba(192,38,211,0.18) 50% 100%);
+    color: var(--text);
+  }
   .badge.assignee-none { background: #f3f4f6; color: var(--muted); border-style: dashed; border-color: var(--border-strong); }
+  .badge.urgent {
+    background: rgba(220,38,38,0.12); color: var(--danger);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .badge.urgent svg { width: 11px; height: 11px; }
   .badge:hover { filter: brightness(0.96); }
+
+  /* Urgent border on task card */
+  .task.urgent {
+    border-left-color: var(--danger);
+    border-left-width: 5px;
+  }
+
+  /* Urgent toggle in the modal */
+  .urgent-toggle {
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; user-select: none;
+    padding: 4px 0;
+  }
+  .urgent-toggle input { display: none; }
+  .urgent-toggle .urgent-toggle-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: var(--pill);
+    background: #f3f4f6; color: var(--muted);
+    font-size: 0.86rem; font-weight: 700;
+    border: 1.5px solid var(--border-strong);
+    transition: all 0.15s;
+  }
+  .urgent-toggle input:checked + .urgent-toggle-pill {
+    background: rgba(220,38,38,0.12);
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+  .urgent-toggle .urgent-hint {
+    font-size: 0.72rem; color: var(--muted);
+    font-weight: 500; text-transform: none; letter-spacing: 0;
+  }
+  @media (max-width: 480px) {
+    .urgent-toggle { flex-wrap: wrap; }
+    .urgent-toggle .urgent-hint { flex-basis: 100%; }
+  }
 
   .task-time {
     font-size: 0.72rem; color: var(--muted); font-weight: 600;
@@ -213,6 +259,8 @@
   .btn-icon.primary:hover { background: #0046cc; }
   .btn-icon.danger { color: var(--danger); }
   .btn-icon.danger:hover { background: #fee2e2; border-color: var(--danger); }
+  .btn-icon.urgent-on { background: var(--danger); color: #fff; border-color: var(--danger); }
+  .btn-icon.urgent-on:hover { background: #b91c1c; }
   .btn-icon svg { width: 16px; height: 16px; }
 
   /* ── Empty state ───────────────────────────────────────────── */
@@ -345,6 +393,7 @@
   .seg.eff button.active.eff-large  { color: var(--eff-large); }
   .seg.assignee button.active.paul     { color: var(--paul); }
   .seg.assignee button.active.michelle { color: var(--michelle); }
+  .seg.assignee button.active.both     { color: var(--text); background: linear-gradient(135deg, rgba(0,70,204,0.10) 0 50%, rgba(192,38,211,0.10) 50% 100%); }
 
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
   .btn {
@@ -380,11 +429,13 @@
   .assignee-pick button:hover { background: #f5f5f5; }
   .assignee-pick button.paul     { border-color: var(--paul); }
   .assignee-pick button.michelle { border-color: var(--michelle); }
+  .assignee-pick button.both     { border-color: var(--text); }
   .assignee-pick .ap-dot {
     width: 28px; height: 28px; border-radius: 50%;
   }
   .assignee-pick button.paul .ap-dot     { background: var(--paul); }
   .assignee-pick button.michelle .ap-dot { background: var(--michelle); }
+  .assignee-pick button.both .ap-dot     { background: linear-gradient(135deg, var(--paul) 0 50%, var(--michelle) 50% 100%); }
   .assignee-pick .ap-name { font-size: 0.96rem; font-weight: 800; color: var(--text); }
 
   /* ── Toast ───────────────────────────────────────────────── */
@@ -477,6 +528,9 @@
       <button type="button" class="michelle" onclick="resolveAssigneePick('Michelle')">
         <span class="ap-dot"></span><span class="ap-name">Michelle</span>
       </button>
+      <button type="button" class="both" onclick="resolveAssigneePick('Both')">
+        <span class="ap-dot"></span><span class="ap-name">Both</span>
+      </button>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="resolveAssigneePick(null)">Cancel</button>
@@ -517,9 +571,21 @@
         <label>Assignee <span style="font-weight:500;text-transform:none;letter-spacing:0">(optional)</span></label>
         <div class="seg assignee" id="tmAssignee">
           <button type="button" data-v="">Unassigned</button>
-          <button type="button" data-v="Paul" class="paul-btn">Paul</button>
-          <button type="button" data-v="Michelle" class="michelle-btn">Michelle</button>
+          <button type="button" data-v="Paul">Paul</button>
+          <button type="button" data-v="Michelle">Michelle</button>
+          <button type="button" data-v="Both">Both</button>
         </div>
+      </div>
+      <div>
+        <label>Priority</label>
+        <label class="urgent-toggle" for="tmUrgent">
+          <input type="checkbox" id="tmUrgent">
+          <span class="urgent-toggle-pill">
+            <svg class="urgent-bolt" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Mark urgent
+          </span>
+          <span class="urgent-hint">Floats to the top of the list, overriding effort/time.</span>
+        </label>
       </div>
     </div>
     <div class="modal-actions">
@@ -571,6 +637,7 @@ let _editTaskId = null;                // null = create, otherwise edit
 let _modalEffort = 'medium';
 let _modalTime   = 'medium';
 let _modalAssignee = '';
+let _modalUrgent = false;
 
 let _assigneePending = null;           // {resolve, task} for the assignee popup
 
@@ -663,16 +730,22 @@ async function loadAll() {
    ════════════════════════════════════════════════════════════════════════ */
 function tasksByStatus(status) { return _tasks.filter(t => t.status === status); }
 function backlogSorted() {
+  // v0.2: urgent floats to the top, overriding effort/time.
   return tasksByStatus('backlog').sort((a, b) =>
-    (SCORE[a.effort] - SCORE[b.effort])
+    (b.is_urgent ? 1 : 0) - (a.is_urgent ? 1 : 0)
+    || (SCORE[a.effort] - SCORE[b.effort])
     || (SCORE[a.time_size] - SCORE[b.time_size])
     || (a.created_at || '').localeCompare(b.created_at || ''));
 }
 function inProgressFor(name) {
-  // Oldest-in-progress at the top (longest-waiting first)
+  // v0.2: an "assignee=Both" task shows in BOTH Paul's and Michelle's lists
+  // (same DB row — moving it forward from either pane moves the single
+  // task; no fork). Urgent floats to top within each pane.
   return tasksByStatus('in_progress')
-    .filter(t => t.assignee === name)
-    .sort((a, b) => (a.status_changed_at || '').localeCompare(b.status_changed_at || ''));
+    .filter(t => t.assignee === name || t.assignee === 'Both')
+    .sort((a, b) =>
+      (b.is_urgent ? 1 : 0) - (a.is_urgent ? 1 : 0)
+      || (a.status_changed_at || '').localeCompare(b.status_changed_at || ''));
 }
 function doneSorted() {
   // Most recent first
@@ -839,8 +912,12 @@ function renderArchived(root) {
 }
 
 /* ── Task card markup ─────────────────────────────────────── */
+const SVG_BOLT = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+
 function taskCard(t, allowBack, allowForward) {
-  const cls = 'task' + (t.assignee ? ' tags-' + t.assignee.toLowerCase() : '');
+  const cls = 'task'
+    + (t.assignee ? ' tags-' + t.assignee.toLowerCase() : '')
+    + (t.is_urgent ? ' urgent' : '');
   const details = t.details
     ? '<button class="task-details-toggle" data-id="' + t.id + '">Details ▾</button>'
       + '<div class="task-details" data-id="' + t.id + '" data-field="details" tabindex="0">' + esc(t.details) + '</div>'
@@ -848,6 +925,9 @@ function taskCard(t, allowBack, allowForward) {
   const assigneeBadge = t.assignee
     ? '<button class="badge assignee-' + t.assignee.toLowerCase() + '" data-act="assignee" data-id="' + t.id + '">' + esc(t.assignee) + '</button>'
     : '<button class="badge assignee-none" data-act="assignee" data-id="' + t.id + '">Unassigned</button>';
+  const urgentBadge = t.is_urgent
+    ? '<button class="badge urgent" data-act="urgent" data-id="' + t.id + '" title="Click to clear urgent">' + SVG_BOLT + ' Urgent</button>'
+    : '';
   // Status timestamp shown on done/archived
   const timeRight = (t.status === 'done' || t.status === 'archived')
     ? '<span class="task-time">' + esc(fmtRelative(t.status_changed_at)) + '</span>'
@@ -855,12 +935,19 @@ function taskCard(t, allowBack, allowForward) {
         ? '<span class="task-time">picked up ' + esc(fmtRelative(t.status_changed_at)) + '</span>'
         : '');
 
+  // Bolt action button — only show on backlog/in-progress (urgent doesn't
+  // matter for done/archived). Filled red when urgent, outlined when not.
+  const urgentToggleBtn = (t.status === 'backlog' || t.status === 'in_progress')
+    ? '<button class="btn-icon' + (t.is_urgent ? ' urgent-on' : '') + '" data-act="urgent" data-id="' + t.id + '" title="' + (t.is_urgent ? 'Clear urgent' : 'Mark urgent') + '">' + SVG_BOLT + '</button>'
+    : '';
+
   return '<div class="' + cls + '" data-id="' + t.id + '">'
     + '<div class="task-head">'
     +   '<div class="task-title" contenteditable="false" data-id="' + t.id + '" data-field="title">' + esc(t.title) + '</div>'
     + '</div>'
     + details
     + '<div class="task-meta">'
+    +   urgentBadge
     +   '<button class="badge eff-' + t.effort + '" data-act="effort" data-id="' + t.id + '">Effort: ' + esc(t.effort) + '</button>'
     +   '<button class="badge eff-' + t.time_size + '" data-act="time" data-id="' + t.id + '">Time: ' + esc(t.time_size) + '</button>'
     +   assigneeBadge
@@ -868,6 +955,7 @@ function taskCard(t, allowBack, allowForward) {
     + '</div>'
     + '<div class="task-actions">'
     +   (allowBack ? '<button class="btn-icon" data-act="back" data-id="' + t.id + '" title="Move back">' + SVG_BACK + '</button>' : '')
+    +   urgentToggleBtn
     +   '<button class="btn-icon" data-act="edit" data-id="' + t.id + '" title="Edit">' + SVG_EDIT + '</button>'
     +   '<button class="btn-icon danger" data-act="delete" data-id="' + t.id + '" title="Delete">' + SVG_TRASH + '</button>'
     +   (allowForward ? '<button class="btn-icon primary" data-act="forward" data-id="' + t.id + '" title="Move forward">' + SVG_FWD + '</button>' : '')
@@ -889,6 +977,7 @@ function wireTaskHandlers() {
       if (act === 'effort')   return cycleField(id, 'effort');
       if (act === 'time')     return cycleField(id, 'time_size');
       if (act === 'assignee') return cycleAssignee(id);
+      if (act === 'urgent')   return toggleUrgent(id);
     };
   });
   // Details collapse/expand
@@ -966,9 +1055,12 @@ async function cycleField(id, field) {
 async function cycleAssignee(id) {
   const t = _tasks.find(x => x.id === id);
   if (!t) return;
-  // Cycle: null -> Paul -> Michelle -> null
+  // Cycle: null -> Paul -> Michelle -> Both -> null
   const cur = t.assignee;
-  const next = !cur ? 'Paul' : (cur === 'Paul' ? 'Michelle' : null);
+  const next = !cur ? 'Paul'
+             : cur === 'Paul' ? 'Michelle'
+             : cur === 'Michelle' ? 'Both'
+             : null;
   // Reject clearing if task isn't in backlog (in_progress requires an assignee)
   if (next === null && t.status !== 'backlog') {
     showToast('Active tasks must have an assignee. Move it back to Backlog first.');
@@ -977,6 +1069,17 @@ async function cycleAssignee(id) {
   try {
     await sb('PATCH', 'tasks?id=eq.' + id, { assignee: next, updated_at: new Date().toISOString() });
     t.assignee = next;
+    render();
+  } catch (e) { showToast('Save failed: ' + e.message); }
+}
+
+async function toggleUrgent(id) {
+  const t = _tasks.find(x => x.id === id);
+  if (!t) return;
+  const next = !t.is_urgent;
+  try {
+    await sb('PATCH', 'tasks?id=eq.' + id, { is_urgent: next, updated_at: new Date().toISOString() });
+    t.is_urgent = next;
     render();
   } catch (e) { showToast('Save failed: ' + e.message); }
 }
@@ -1062,9 +1165,11 @@ function resolveAssigneePick(value) {
 function openCreate() {
   _editTaskId = null;
   _modalEffort = 'medium'; _modalTime = 'medium'; _modalAssignee = '';
+  _modalUrgent = false;
   document.getElementById('taskModalTitle').textContent = 'New task';
   document.getElementById('tmTitle').value = '';
   document.getElementById('tmDetails').value = '';
+  document.getElementById('tmUrgent').checked = false;
   applyModalSegs();
   document.getElementById('taskModal').classList.add('shown');
   setTimeout(() => document.getElementById('tmTitle').focus(), 30);
@@ -1074,9 +1179,11 @@ function openEdit(id) {
   if (!t) return;
   _editTaskId = id;
   _modalEffort = t.effort; _modalTime = t.time_size; _modalAssignee = t.assignee || '';
+  _modalUrgent = !!t.is_urgent;
   document.getElementById('taskModalTitle').textContent = 'Edit task';
   document.getElementById('tmTitle').value = t.title;
   document.getElementById('tmDetails').value = t.details || '';
+  document.getElementById('tmUrgent').checked = _modalUrgent;
   applyModalSegs();
   document.getElementById('taskModal').classList.add('shown');
   setTimeout(() => document.getElementById('tmTitle').focus(), 30);
@@ -1106,6 +1213,7 @@ async function submitTaskModal() {
     effort: _modalEffort,
     time_size: _modalTime,
     assignee: _modalAssignee || null,
+    is_urgent: document.getElementById('tmUrgent').checked,
     updated_at: new Date().toISOString()
   };
   const btn = document.getElementById('tmSaveBtn');
@@ -1192,7 +1300,7 @@ async function syncTick() {
 }
 function snapshotForDiff() {
   const m = new Map();
-  for (const t of _tasks) m.set(t.id, [t.title, t.details, t.effort, t.time_size, t.assignee, t.status].join('|'));
+  for (const t of _tasks) m.set(t.id, [t.title, t.details, t.effort, t.time_size, t.assignee, t.status, t.is_urgent].join('|'));
   return m;
 }
 function diffKeys(a, b) {
