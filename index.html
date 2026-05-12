@@ -430,6 +430,8 @@
   .assignee-pick button.paul     { border-color: var(--paul); }
   .assignee-pick button.michelle { border-color: var(--michelle); }
   .assignee-pick button.both     { border-color: var(--text); }
+  .assignee-pick button.unassigned { border-color: var(--border-strong); border-style: dashed; }
+  .assignee-pick button.unassigned .ap-dot { background: var(--muted); }
   .assignee-pick .ap-dot {
     width: 28px; height: 28px; border-radius: 50%;
   }
@@ -530,6 +532,9 @@
       </button>
       <button type="button" class="both" onclick="resolveAssigneePick('Both')">
         <span class="ap-dot"></span><span class="ap-name">Both</span>
+      </button>
+      <button type="button" class="unassigned hidden" id="assigneeUnassignedBtn" onclick="resolveAssigneePick('')">
+        <span class="ap-dot"></span><span class="ap-name">Unassigned</span>
       </button>
     </div>
     <div class="modal-actions">
@@ -976,7 +981,7 @@ function wireTaskHandlers() {
       if (act === 'delete')   return askDelete(id);
       if (act === 'effort')   return cycleField(id, 'effort');
       if (act === 'time')     return cycleField(id, 'time_size');
-      if (act === 'assignee') return cycleAssignee(id);
+      if (act === 'assignee') return pickAssignee(id);
       if (act === 'urgent')   return toggleUrgent(id);
     };
   });
@@ -1052,22 +1057,29 @@ async function cycleField(id, field) {
     render();
   } catch (e) { showToast('Save failed: ' + e.message); }
 }
-async function cycleAssignee(id) {
+// v0.3: tapping the assignee badge now opens the picker popup
+// (same component the forward-from-backlog flow uses) instead of
+// cycling. The "Unassigned" option is offered ONLY when the task
+// is in the backlog — active/done/archived tasks must have an
+// assignee on the row.
+async function pickAssignee(id) {
   const t = _tasks.find(x => x.id === id);
   if (!t) return;
-  // Cycle: null -> Paul -> Michelle -> Both -> null
-  const cur = t.assignee;
-  const next = !cur ? 'Paul'
-             : cur === 'Paul' ? 'Michelle'
-             : cur === 'Michelle' ? 'Both'
-             : null;
-  // Reject clearing if task isn't in backlog (in_progress requires an assignee)
-  if (next === null && t.status !== 'backlog') {
-    showToast('Active tasks must have an assignee. Move it back to Backlog first.');
-    return;
-  }
+  const allowUnassigned = (t.status === 'backlog');
+  const picked = await promptAssignee(t, {
+    title: 'Assign task',
+    context: '"' + (t.title || 'this task') + '" — pick the owner.',
+    allowUnassigned: allowUnassigned
+  });
+  if (picked === null) return;       // cancelled
+  // picked is 'Paul' / 'Michelle' / 'Both' / '' (unassigned)
+  const next = picked === '' ? null : picked;
+  if (next === t.assignee) return;   // no change
   try {
-    await sb('PATCH', 'tasks?id=eq.' + id, { assignee: next, updated_at: new Date().toISOString() });
+    await sb('PATCH', 'tasks?id=eq.' + id, {
+      assignee: next,
+      updated_at: new Date().toISOString()
+    });
     t.assignee = next;
     render();
   } catch (e) { showToast('Save failed: ' + e.message); }
@@ -1150,10 +1162,19 @@ function flashTask(id) {
 }
 
 /* ── Assignee popup (custom UI) ────────────────────────────── */
-function promptAssignee(task) {
-  document.getElementById('assigneeContext').textContent =
-    '"' + (task.title || 'this task') + '" needs an assignee before it can move to In Progress.';
-  document.getElementById('assigneeModal').classList.add('shown');
+// opts = { title?, context?, allowUnassigned? }
+//   - title         — modal heading (defaults to "Who's taking this on?")
+//   - context       — descriptive line below the title
+//   - allowUnassigned — show the dashed "Unassigned" tile (4th option)
+// Returns one of: 'Paul' | 'Michelle' | 'Both' | '' (unassigned) | null (cancel)
+function promptAssignee(task, opts) {
+  opts = opts || {};
+  const modal = document.getElementById('assigneeModal');
+  modal.querySelector('.modal-title').textContent = opts.title || 'Who’s taking this on?';
+  document.getElementById('assigneeContext').textContent = opts.context
+    || ('"' + (task.title || 'this task') + '" needs an assignee before it can move to In Progress.');
+  document.getElementById('assigneeUnassignedBtn').classList.toggle('hidden', !opts.allowUnassigned);
+  modal.classList.add('shown');
   return new Promise(resolve => { _assigneePending = resolve; });
 }
 function resolveAssigneePick(value) {
