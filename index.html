@@ -573,7 +573,7 @@
         </div>
       </div>
       <div>
-        <label>Assignee <span style="font-weight:500;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <label>Assignee <span id="tmAssigneeReq" style="font-weight:500;text-transform:none;letter-spacing:0">(optional)</span></label>
         <div class="seg assignee" id="tmAssignee">
           <button type="button" data-v="">Unassigned</button>
           <button type="button" data-v="Paul">Paul</button>
@@ -584,12 +584,12 @@
       <div>
         <label>Priority</label>
         <label class="urgent-toggle" for="tmUrgent">
-          <input type="checkbox" id="tmUrgent">
+          <input type="checkbox" id="tmUrgent" onchange="onUrgentToggleChange()">
           <span class="urgent-toggle-pill">
             <svg class="urgent-bolt" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             Mark urgent
           </span>
-          <span class="urgent-hint">Floats to the top of the list, overriding effort/time.</span>
+          <span class="urgent-hint" id="tmUrgentHint">Floats to the top of the list, overriding effort/time.</span>
         </label>
       </div>
     </div>
@@ -1209,6 +1209,7 @@ function openCreate() {
   document.getElementById('tmDetails').value = '';
   document.getElementById('tmUrgent').checked = false;
   applyModalSegs();
+  syncUrgentUI();   // reset assignee label + hint to default state
   document.getElementById('taskModal').classList.add('shown');
   setTimeout(() => document.getElementById('tmTitle').focus(), 30);
 }
@@ -1223,8 +1224,34 @@ function openEdit(id) {
   document.getElementById('tmDetails').value = t.details || '';
   document.getElementById('tmUrgent').checked = _modalUrgent;
   applyModalSegs();
+  syncUrgentUI();
   document.getElementById('taskModal').classList.add('shown');
   setTimeout(() => document.getElementById('tmTitle').focus(), 30);
+}
+
+/* When the Urgent toggle changes, mirror the state into the assignee
+   label and the hint copy. On CREATE, urgent + no-assignee is an error
+   the user must resolve before Save — this gives them live feedback
+   rather than only a toast at submit. */
+function onUrgentToggleChange() { syncUrgentUI(); }
+function syncUrgentUI() {
+  const isCreate = (_editTaskId == null);
+  const isUrgent = document.getElementById('tmUrgent').checked;
+  const reqEl  = document.getElementById('tmAssigneeReq');
+  const hintEl = document.getElementById('tmUrgentHint');
+  if (isUrgent && isCreate) {
+    reqEl.textContent = '(required)';
+    reqEl.style.color = 'var(--danger)';
+    hintEl.textContent = 'Urgent tasks need an assignee and go straight to Active.';
+  } else if (isUrgent) {
+    reqEl.textContent = '(optional)';
+    reqEl.style.color = '';
+    hintEl.textContent = 'Floats to the top of the list, overriding effort/time.';
+  } else {
+    reqEl.textContent = '(optional)';
+    reqEl.style.color = '';
+    hintEl.textContent = 'Floats to the top of the list, overriding effort/time.';
+  }
 }
 function closeTaskModal() { document.getElementById('taskModal').classList.remove('shown'); }
 function applyModalSegs() {
@@ -1245,20 +1272,34 @@ async function submitTaskModal() {
   const title = document.getElementById('tmTitle').value.trim();
   const details = document.getElementById('tmDetails').value.trim();
   if (!title) { showToast('Title required'); return; }
+  const isUrgent = document.getElementById('tmUrgent').checked;
+  const isCreate = (_editTaskId == null);
+  // v0.5: an urgent NEW task must have an assignee AND goes straight to
+  // Active (in_progress) — skipping backlog. Urgent tasks demand attention,
+  // and an unassigned in_progress row would be nobody's responsibility.
+  if (isCreate && isUrgent && !_modalAssignee) {
+    showToast('Urgent tasks need an assignee — pick Paul, Michelle, or Both.');
+    return;
+  }
   const payload = {
     title,
     details: details || null,
     effort: _modalEffort,
     time_size: _modalTime,
     assignee: _modalAssignee || null,
-    is_urgent: document.getElementById('tmUrgent').checked,
+    is_urgent: isUrgent,
     updated_at: new Date().toISOString()
   };
   const btn = document.getElementById('tmSaveBtn');
   btn.disabled = true;
   try {
-    if (_editTaskId == null) {
-      const created = await sb('POST', 'tasks', { ...payload, status: 'backlog' });
+    if (isCreate) {
+      const initialStatus = isUrgent ? 'in_progress' : 'backlog';
+      const created = await sb('POST', 'tasks', {
+        ...payload,
+        status: initialStatus,
+        status_changed_at: new Date().toISOString()
+      });
       const made = Array.isArray(created) ? created[0] : created;
       _tasks.push(made);
     } else {
